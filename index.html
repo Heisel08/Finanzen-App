@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finanzen App</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial;
+      scroll-behavior: smooth;
+      
+    }
+
+    .Section {
+      background-color: #f3f3f3;
+      height: 50px;
+      padding: 50px;
+      width: 400px;
+      border-radius: 10px;
+      margin: 20px auto;
+    }
+
+    .BarEc {
+      background-color: white;
+      border-radius: 5px;
+      padding: 20px;
+      margin-top: -25px;
+      margin-left: -10px;
+      margin-right: -10px;
+    }
+
+    button {
+      height: 35px;
+      width: 40%;
+      background-color: lightgrey;
+      border: none;
+      border-radius: 5px;
+      font-size: 15px;
+    }
+
+    input, select {
+      height: 30px;
+      margin-top: 5px;
+      text-align: center;
+      font-size: 15px;
+      border: none;
+      border-bottom: 1px solid #ccc;
+      outline: none;
+    }
+
+    select {
+      height: 40px;
+      padding: 10px;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      max-width: 400px;
+      margin: 20px auto;
+      padding: 10px;
+    }
+
+    label {
+      margin-top: 15px;
+      margin-bottom: 2px;
+    }
+
+    .centered-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 5px;
+    }
+
+    .checkbox-wrapper {
+     display: flex;
+      align-items: center;
+      gap : 10px;
+      justify-content: center;
+     margin-bottom: 15px;    }
+
+    .ordner-btn {
+      display: block;
+      margin: 10px auto;
+      background-color: lightgrey;
+      border: 1px solid #ccc;
+      padding: 8px;
+      cursor: pointer;
+      width: 400px;
+    }
+
+    table {
+      width: 400px;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background-color: #f2f2f2;
+    }
+
+    .loesch-btn {
+      color: red;
+      cursor: pointer;
+    }
+
+    .datum {
+      color: black;
+    }
+
+    #liste-section {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+    #ausgabenContainer > div {
+      max-width: 400px;
+      margin: 0 auto;
+    }
+
+
+  </style>
+</head>
+<body>
+  <h1>Finanzen App</h1>
+
+  <section>
+    <h2>Aktueller Betrag</h2>
+
+    <div class="Section">
+      <div class="BarEc">
+        <div>Bar: <span id="barAnzeige">0,00</span>€</div>
+        <input type="text" id="barInput" placeholder="Bar Betrag hinzufügen" />
+        <button id="barBtn">Betrag hinzufügen</button>
+      </div>
+    </div>
+
+    <div class="Section">
+      <div class="BarEc">
+        <div>EC: <span id="ecAnzeige">0,00</span>€</div>
+        <input type="text" id="ecInput" placeholder="EC Betrag hinzufügen" />
+        <button id="ecBtn">Betrag hinzufügen</button>
+      </div>
+    </div>
+  </section>
+
+  <main>
+    <label for="zahlung">Zahlungsart:</label>
+    <select id="zahlung">
+      <option value="bar">Bar</option>
+      <option value="ec">EC</option>
+    </select>
+
+    <label for="geschaeft">Geschäft:</label>
+    <input type="text" id="geschaeft" placeholder="Geschäft eingeben" />
+
+    <label for="betrag">Betrag in €:</label>
+    <input type="text" id="betrag" placeholder="ausgegebener Betrag eingeben" />
+
+    <div class="centered-wrapper">
+      <div class="checkbox-wrapper">
+        <input type="checkbox" id="vortag" />
+        <label for="vortag">Für gestern speichern</label>
+      </div>
+      <button onclick="hinzufuegen()">Eintrag hinzufügen</button>
+    </div>
+  </main>
+
+  <section id="liste-section">
+    <h2>Übersicht</h2>
+    <div id="ausgabenContainer"></div>
+  </section>
+
+  <script>
+    let ausgaben = [];
+    let barBetrag = 0;
+    let ecBetrag = 0;
+
+    window.onload = function () {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./service-worker.js');
+      }
+
+      const gespeichert = localStorage.getItem("ausgaben");
+      if (gespeichert) ausgaben = JSON.parse(gespeichert);
+      const gespeicherteBar = localStorage.getItem("barBetrag");
+      const gespeicherteEc = localStorage.getItem("ecBetrag");
+      if (gespeicherteBar) barBetrag = parseFloat(gespeicherteBar);
+      if (gespeicherteEc) ecBetrag = parseFloat(gespeicherteEc);
+
+      aktualisiereGruppierteAnsicht();
+      aktualisiereBetragsAnzeige();
+    };
+
+    function hinzufuegen() {
+      const zahlung = document.getElementById("zahlung").value;
+      const geschaeft = document.getElementById("geschaeft").value;
+      const betrag = parseFloat(document.getElementById("betrag").value);
+      const istVortag = document.getElementById("vortag").checked;
+
+      if (!geschaeft || isNaN(betrag)) {
+        alert("Bitte alle Felder ausfüllen!");
+        return;
+      }
+
+      const datum = new Date();
+      if (istVortag) datum.setDate(datum.getDate() - 1);
+
+      const eintrag = {
+        id: Date.now(),
+        datum,
+        tag: datum.toLocaleDateString("de-DE"),
+        monat: datum.toLocaleDateString("de-DE", { year: 'numeric', month: 'long' }),
+        geschaeft,
+        zahlung: zahlung.charAt(0).toUpperCase() + zahlung.slice(1),
+        betrag
+      };
+
+      ausgaben.push(eintrag);
+
+      // Budget reduzieren
+      if (zahlung === "bar") {
+        barBetrag -= betrag;
+        localStorage.setItem("barBetrag", barBetrag);
+      } else if (zahlung === "ec") {
+        ecBetrag -= betrag;
+        localStorage.setItem("ecBetrag", ecBetrag);
+      }
+
+      speichern();
+      aktualisiereGruppierteAnsicht();
+      aktualisiereBetragsAnzeige();
+
+      document.getElementById("zahlung").value = "bar";
+      document.getElementById("geschaeft").value = "";
+      document.getElementById("betrag").value = "";
+      document.getElementById("vortag").checked = false;
+    }
+
+    function speichern() {
+      localStorage.setItem("ausgaben", JSON.stringify(ausgaben));
+    }
+
+    function loeschen(id) {
+      ausgaben = ausgaben.filter(e => e.id !== id);
+      speichern();
+      aktualisiereGruppierteAnsicht();
+    }
+
+    function aktualisiereGruppierteAnsicht() {
+      const container = document.getElementById("ausgabenContainer");
+      container.innerHTML = "";
+
+      const gruppiert = {};
+      ausgaben.forEach(e => {
+        if (!gruppiert[e.monat]) gruppiert[e.monat] = {};
+        if (!gruppiert[e.monat][e.tag]) gruppiert[e.monat][e.tag] = [];
+        gruppiert[e.monat][e.tag].push(e);
+      });
+
+      for (const monat in gruppiert) {
+        const monatDiv = document.createElement("div");
+        const monatHeader = document.createElement("h3");
+        monatHeader.textContent = monat;
+        monatHeader.className = "datum";
+        monatDiv.appendChild(monatHeader);
+
+        for (const tag in gruppiert[monat]) {
+          const tagBlock = document.createElement("div");
+          const tagHeader = document.createElement("button");
+          tagHeader.className = "ordner-btn datum";
+          tagHeader.textContent = tag;
+
+          const tableDiv = document.createElement("div");
+          tableDiv.style.display = "none";
+
+          const table = document.createElement("table");
+          table.innerHTML = `
+            <thead>
+              <tr>
+                <th>Geschäft</th>
+                <th>Zahlungsart</th>
+                <th>Betrag (€)</th>
+                <th>Löschen</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          `;
+
+          const tbody = table.querySelector("tbody");
+          gruppiert[monat][tag].forEach(e => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${e.geschaeft}</td>
+              <td>${e.zahlung}</td>
+              <td>${e.betrag.toFixed(2)}</td>
+              <td><span class="loesch-btn" onclick="loeschen(${e.id})">🗑️</span></td>
+            `;
+            tbody.appendChild(row);
+          });
+
+          tableDiv.appendChild(table);
+          tagHeader.onclick = () => {
+            tableDiv.style.display = tableDiv.style.display === "none" ? "block" : "none";
+          };
+
+          tagBlock.appendChild(tagHeader);
+          tagBlock.appendChild(tableDiv);
+          monatDiv.appendChild(tagBlock);
+        }
+
+        container.appendChild(monatDiv);
+      }
+    }
+
+    function aktualisiereBetragsAnzeige() {
+      document.getElementById("barAnzeige").textContent = barBetrag.toFixed(2);
+      document.getElementById("ecAnzeige").textContent = ecBetrag.toFixed(2);
+    }
+
+    document.getElementById("barBtn").addEventListener("click", function () {
+      const betrag = parseFloat(document.getElementById("barInput").value);
+      if (!isNaN(betrag)) {
+        barBetrag += betrag;
+        localStorage.setItem("barBetrag", barBetrag);
+        aktualisiereBetragsAnzeige();
+        document.getElementById("barInput").value = "";
+      }
+    });
+
+    document.getElementById("ecBtn").addEventListener("click", function () {
+      const betrag = parseFloat(document.getElementById("ecInput").value);
+      if (!isNaN(betrag)) {
+        ecBetrag += betrag;
+        localStorage.setItem("ecBetrag", ecBetrag);
+        aktualisiereBetragsAnzeige();
+        document.getElementById("ecInput").value = "";
+      }
+    });
+  </script>
+</body>
+</html>
